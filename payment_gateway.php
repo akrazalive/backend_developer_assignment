@@ -47,26 +47,115 @@ class PaymentGateway
 
 class PaypalPaymentGateway
 {
-    public function makePayment($amount, $currency, $customer_name, $card_holder_name, $card_number, $expiration_month, $expiration_year, $cvv)
-    {   
+    
+   public function makePayment($amount, $currency, $customer_name, $card_holder_name, $card_number, $expiration_month, $expiration_year, $cvv)
+    {
         $client_id = PAYPAL_CLIENT_ID;
         $secret = PAYPAL_SECRET;
         $environment = PAYPAL_ENVIRONMENT;
-        // Implement PayPal payment logic here
-        // Use the PayPal REST API to make the payment
-        // Return the payment response, including transaction_id
-    }
+
+        // Set API endpoint based on the environment
+        $api_endpoint = $environment === 'sandbox' ? 'https://api.sandbox.paypal.com/v1' : 'https://api.paypal.com/v1';
+
+        // Prepare the payment payload
+        $payload = [
+            'intent' => 'sale',
+            'payer' => [
+                'payment_method' => 'credit_card',
+                'funding_instruments' => [
+                    [
+                        'credit_card' => [
+                            'type' => 'credit_card',
+                            'number' => $card_number,
+                            'expire_month' => $expiration_month,
+                            'expire_year' => $expiration_year,
+                            'cvv2' => $cvv,
+                            'first_name' => $card_holder_name,
+                            'last_name' => $customer_name
+                        ]
+                    ]
+                ]
+            ],
+            'transactions' => [
+                [
+                    'amount' => [
+                        'total' => $amount,
+                        'currency' => $currency
+                    ]
+                ]
+            ]
+        ];
+
+        // Convert the payload to JSON
+        $payload_json = json_encode($payload);
+
+        // Prepare the cURL request
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $api_endpoint . '/payments/payment');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload_json);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Basic ' . base64_encode($client_id . ':' . $secret)
+        ]);
+
+        // Execute the cURL request
+        $response_json = curl_exec($ch);
+        curl_close($ch);
+
+        // Parse the response JSON
+        $response = json_decode($response_json, true);
+
+        // Check if the payment was successful
+        if (isset($response['state']) && $response['state'] === 'approved') {
+            return ['status' => 'success', 'transaction_id' => $response['id']];
+        } else {
+            $error_message = isset($response['message']) ? $response['message'] : 'Payment failed.';
+            return ['status' => 'error', 'message' => $error_message];
+        }
+     }   
+
 }
+
+
+require_once 'vendor/autoload.php'; // Include the Braintree PHP SDK
 
 class BraintreePaymentGateway
 {
     public function makePayment($amount, $currency, $customer_name, $card_holder_name, $card_number, $expiration_month, $expiration_year, $cvv)
-    {   
+    {
         $merchant_id = BRAINTREE_MERCHANT_ID;
         $public_key = BRAINTREE_PUBLIC_KEY;
         $private_key = BRAINTREE_PRIVATE_KEY;
-        // Implement Braintree payment logic here
-        // Use the Braintree API to make the payment
-        // Return the payment response, including transaction_id
+
+        // Initialize Braintree with your sandbox credentials
+        \Braintree\Configuration::environment('sandbox');
+        \Braintree\Configuration::merchantId($merchant_id);
+        \Braintree\Configuration::publicKey($public_key);
+        \Braintree\Configuration::privateKey($private_key);
+
+        // Prepare the payment payload
+        $payload = [
+            'amount' => $amount,
+            'creditCard' => [
+                'number' => $card_number,
+                'expirationMonth' => $expiration_month,
+                'expirationYear' => $expiration_year,
+                'cvv' => $cvv,
+                'cardholderName' => $card_holder_name
+            ]
+        ];
+
+        // Make the payment request
+        $result = \Braintree\Transaction::sale($payload);
+
+        // Check if the payment was successful
+        if ($result->success) {
+            return ['status' => 'success', 'transaction_id' => $result->transaction->id];
+        } else {
+            $error_message = $result->message;
+            return ['status' => 'error', 'message' => $error_message];
+        }
     }
 }
