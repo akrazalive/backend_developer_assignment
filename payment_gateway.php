@@ -17,6 +17,12 @@ class PaymentGateway
 
         // Make the payment using the selected gateway
         $response = $payment_gateway->makePayment($amount, $currency, $customer_name, $card_holder_name, $card_number, $expiration_month, $expiration_year, $cvv);
+        
+        echo "<pre>"; 
+           print_r($payment_gateway);
+           print_r($response);
+        echo "</pre>";
+        exit;
 
         // Save order data and payment response to the database (You need to implement this)
         $this->saveToDatabase($amount, $currency, $customer_name, $response);
@@ -58,6 +64,7 @@ class PaypalPaymentGateway
         $api_endpoint = $environment === 'sandbox' ? 'https://api.sandbox.paypal.com/v1' : 'https://api.paypal.com/v1';
 
         // Prepare the payment payload
+        //VISA, MASTERCARD, AMEX, DISCOVER, DINERS, MAESTRO, ELO, HIPER, SWITCH, JCB, HIPERCARD, CUP, RUPAY
         $payload = [
             'intent' => 'sale',
             'payer' => [
@@ -65,7 +72,7 @@ class PaypalPaymentGateway
                 'funding_instruments' => [
                     [
                         'credit_card' => [
-                            'type' => 'credit_card',
+                            'type' => 'VISA',
                             'number' => $card_number,
                             'expire_month' => $expiration_month,
                             'expire_year' => $expiration_year,
@@ -106,6 +113,10 @@ class PaypalPaymentGateway
 
         // Parse the response JSON
         $response = json_decode($response_json, true);
+
+        echo "<pre>"; 
+        print_r($response);
+        echo "</pre>";
 
         // Check if the payment was successful
         if (isset($response['state']) && $response['state'] === 'approved') {
